@@ -1,0 +1,49 @@
+name: Sync Fork
+
+# 自动从 upstream (xarial/xcad-examples) 同步到本 fork
+# 触发：定时（每日 UTC 18:00 = 北京时间凌晨 2 点）+ 手动
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Git 身份
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 同步 upstream
+        run: |
+          set -e
+          git remote add upstream https://github.com/xarial/xcad-examples.git
+          git fetch upstream master
+
+          LOCAL=$(git rev-parse HEAD)
+          REMOTE=$(git rev-parse upstream/master)
+
+          echo "local : $LOCAL"
+          echo "remote: $REMOTE"
+
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "✅ 本地已与 upstream 同步，无需操作"
+            exit 0
+          fi
+
+          # 用 -X ours 处理冲突，保留本地文件（保护 CLAUDE.md 等 fork 专属内容）
+          git merge upstream/master --no-edit -X ours \
+            -m "sync: merge upstream/master into fork"
+
+          git push origin master
